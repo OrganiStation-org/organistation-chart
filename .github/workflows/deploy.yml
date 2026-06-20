@@ -1,0 +1,86 @@
+name: Continuous Deployment (Helm)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options: ['dev', 'prod']
+      image_tag:
+        description: 'Image Tag to deploy'
+        required: true
+        default: 'latest'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to AKS
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout Helm Chart
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ vars.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ vars.AKS_CLUSTER_NAME }}
+
+      - name: Deploy Chart
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          NAMESPACE="${ENV}-ns"
+          
+          helm upgrade --install organistation ./ \
+            --namespace $NAMESPACE \
+            --create-namespace \
+            -f ./${ENV}-values.yaml \
+            --set global.imageTag=${{ github.event.inputs.image_tag }} \
+            --wait \
+            --timeout 10m \
+            --atomic
+            
+      - name: Verify Rollout
+        run: |
+          NAMESPACE="${{ github.event.inputs.environment }}-ns"
+          kubectl rollout status deployment/gateway -n $NAMESPACE --timeout=120s
+
+      - name: Health Check Smoke Test
+        run: |
+          GATEWAY_IP=$(kubectl get svc gateway -n ${{ github.event.inputs.environment }}-ns -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          if [ -z "$GATEWAY_IP" ]; then
+            echo "Gateway IP not found. Skipping smoke test."
+          else
+            curl -f "http://$GATEWAY_IP/health" || (echo "Health check failed!" && exit 1)
+          fi
+
+      - name: Notify Result
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SOURCE_EMAIL }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "Deployment ${{ job.status }}: OrganiStation ${{ github.event.inputs.environment }}"
+          to: ${{ secrets.TARGET_EMAIL }}
+          from: ${{ secrets.SOURCE_EMAIL }}
+          body: |
+            Deployment of OrganiStation to ${{ github.event.inputs.environment }} finished with status: ${{ job.status }}
+            Namespace: ${{ github.event.inputs.environment }}-ns
+            Image Tag: ${{ github.event.inputs.image_tag }}

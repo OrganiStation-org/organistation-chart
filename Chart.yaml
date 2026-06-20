@@ -1,0 +1,29 @@
+apiVersion: v2
+name: organistation-umbrella
+description: Umbrella chart for OrganiStation microservices
+type: application
+version: 1.0.0
+appVersion: "v1.0.0"
+
+dependencies:
+  - name: auth
+    version: 0.1.0
+    repository: "file://./charts/auth"
+  - name: hr
+    version: 0.1.0
+    repository: "file://./charts/hr"
+  - name: ai
+    version: 0.1.0
+    repository: "file://./charts/ai"
+  - name: projects
+    version: 0.1.0
+    repository: "file://./charts/projects"
+  - name: finance
+    version: 0.1.0
+    repository: "file://./charts/finance"
+  - name: gateway
+    version: 0.1.0
+    repository: "file://./charts/gateway"
+  - name: frontend
+    version: 0.1.0
+    repository: "file://./charts/frontend"

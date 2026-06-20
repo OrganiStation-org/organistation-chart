@@ -1,0 +1,29 @@
+# Global values for OrganiStation
+global:
+  namespace: {{ .Values.global.namespace | required "A global namespace must be defined in your values file!" }}
+  keyvaultName: "your-kv-name"
+  azureTenantId: "your-tenant-id"
+  userAssignedIdentityID: ""
+
+auth:
+  enabled: true
+hr:
+  enabled: true
+ai:
+  enabled: true
+projects:
+  enabled: true
+finance:
+  enabled: true
+gateway:
+  enabled: true
+frontend:
+  enabled: true
+notification:
+  enabled: true
+
+ingress:
+  enabled: true
+  name: organistation-ingress
+  sslRedirect: false
+  port: 80

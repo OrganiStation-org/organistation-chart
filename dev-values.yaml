@@ -1,0 +1,42 @@
+global:
+  namespace: {{ .Values.global.namespace | required "A global namespace must be defined in your values file!" }}
+  keyvaultName: "keyvaorg-dev"
+  azureTenantId: ""
+  userAssignedIdentityID: ""
+
+# Override all subcharts for dev environment
+auth:
+  replicaCount: 1
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 200m, memory: 256Mi }
+
+ai:
+  replicaCount: 1
+  resources:
+    requests: { cpu: 200m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+hr:
+  replicaCount: 1
+  resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 200m, memory: 256Mi } }
+
+finance:
+  replicaCount: 1
+  resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 200m, memory: 256Mi } }
+
+projects:
+  replicaCount: 1
+  resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 200m, memory: 256Mi } }
+
+gateway:
+  replicaCount: 1
+  resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 200m, memory: 256Mi } }
+
+frontend:
+  replicaCount: 1
+  resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 200m, memory: 256Mi } }
+
+notification:
+  replicaCount: 1
+  resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 200m, memory: 256Mi } }

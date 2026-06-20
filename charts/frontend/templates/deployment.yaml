@@ -1,0 +1,95 @@
+# ==============================================================================
+# ARCHITECTURE NOTE: STATELESS DESIGN & LOAD DISTRIBUTION
+# ------------------------------------------------------------------------------
+# 1. Stateless Design: 
+#    - All microservices are strictly stateless. 
+#    - Session state is managed via JWT; data persists in Azure Cosmos DB.
+# 2. Load Distribution:
+#    - Multiple replicas are managed by Kubernetes Deployment.
+#    - Service-based Round Robin distribution across Pods.
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Values.global.namespace | required "A global namespace must be defined in your values file!" }}
+  labels:
+    azure.workload.identity/use: "true"
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ .Values.rollingUpdate.type }}
+    rollingUpdate:
+      maxUnavailable: {{ .Values.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: {{ .Values.name }}-sa
+      containers:
+      - name: {{ .Values.name }}
+        image: "{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.service.targetPort }}
+        {{- if .Values.secrets }}
+        envFrom:
+        - secretRef:
+            name: {{ .Values.name }}-secret
+        {{- end }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        {{- if .Values.secrets }}
+        volumeMounts:
+        - name: secrets-store-inline
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+        {{- end }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.service.healthPath | default "/" }}
+            port: {{ .Values.service.targetPort }}
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.service.healthPath | default "/" }}
+            port: {{ .Values.service.targetPort }}
+          initialDelaySeconds: 30
+          periodSeconds: 20
+      {{- if .Values.secrets }}
+      volumes:
+      - name: secrets-store-inline
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "{{ .Values.name }}-kv-secrets"
+      {{- end }}
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Values.global.namespace | required "A global namespace must be defined in your values file!" }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.name }}
+  minReplicas: {{ .Values.replicaCount }}
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
