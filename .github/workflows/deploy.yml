@@ -26,7 +26,7 @@ jobs:
             echo "env=dev" >> $GITHUB_OUTPUT
             echo "ENV_NAME=dev" >> $GITHUB_ENV
           fi
-          echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+          echo "IMAGE_TAG=v1.0.0" >> $GITHUB_ENV
 
       - name: Azure Login
         uses: azure/login@v2
