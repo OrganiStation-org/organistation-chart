@@ -57,18 +57,24 @@ spec:
           mountPath: {{ .Values.persistence.mountPath }}
         {{- end }}
         {{- end }}
+        startupProbe:
+          httpGet:
+            path: {{ .Values.service.healthPath | default "/health" }}
+            port: {{ .Values.service.targetPort }}
+          failureThreshold: 30
+          periodSeconds: 10
         readinessProbe:
           httpGet:
             path: {{ .Values.service.healthPath | default "/health" }}
             port: {{ .Values.service.targetPort }}
-          initialDelaySeconds: 45
-          periodSeconds: 15
+          initialDelaySeconds: 5
+          periodSeconds: 10
         livenessProbe:
           httpGet:
             path: {{ .Values.service.healthPath | default "/health" }}
             port: {{ .Values.service.targetPort }}
-          initialDelaySeconds: 90
-          periodSeconds: 20
+          initialDelaySeconds: 5
+          periodSeconds: 15
       {{- if or .Values.secrets .Values.persistence.enabled }}
       volumes:
       {{- if .Values.secrets }}

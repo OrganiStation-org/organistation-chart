@@ -51,18 +51,24 @@ spec:
           mountPath: "/mnt/secrets-store"
           readOnly: true
         {{- end }}
+        startupProbe:
+          httpGet:
+            path: {{ .Values.service.healthPath | default "/health" }}
+            port: {{ .Values.service.targetPort }}
+          failureThreshold: 15
+          periodSeconds: 10
         readinessProbe:
           httpGet:
             path: {{ .Values.service.healthPath | default "/health" }}
             port: {{ .Values.service.targetPort }}
-          initialDelaySeconds: 30
-          periodSeconds: 15
+          initialDelaySeconds: 5
+          periodSeconds: 10
         livenessProbe:
           httpGet:
             path: {{ .Values.service.healthPath | default "/health" }}
             port: {{ .Values.service.targetPort }}
-          initialDelaySeconds: 60
-          periodSeconds: 20
+          initialDelaySeconds: 5
+          periodSeconds: 15
       {{- if .Values.secrets }}
       volumes:
       - name: secrets-store-inline

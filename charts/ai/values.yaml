@@ -32,5 +32,5 @@ secrets:
 persistence:
   enabled: true
   size: 5Gi
-  storageClass: azurefile-csi
+  storageClass: default # Switched from azurefile-csi to default for better AKS compatibility
   mountPath: /app/chroma_db
