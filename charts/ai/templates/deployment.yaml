@@ -61,13 +61,13 @@ spec:
           httpGet:
             path: {{ .Values.service.healthPath | default "/health" }}
             port: {{ .Values.service.targetPort }}
-          initialDelaySeconds: 10
+          initialDelaySeconds: 45
           periodSeconds: 15
         livenessProbe:
           httpGet:
             path: {{ .Values.service.healthPath | default "/health" }}
             port: {{ .Values.service.targetPort }}
-          initialDelaySeconds: 30
+          initialDelaySeconds: 90
           periodSeconds: 20
       {{- if or .Values.secrets .Values.persistence.enabled }}
       volumes:

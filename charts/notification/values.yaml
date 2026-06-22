@@ -8,11 +8,11 @@ rollingUpdate:
 image:
   name: maheshnandi/organistation-notification
   tag: v1.0.0
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 service:
-  port: 8005
-  targetPort: 8005
+  port: 8007
+  targetPort: 8007
   healthPath: /health
 
 resources:
