@@ -1,13 +1,3 @@
-# ==============================================================================
-# ARCHITECTURE NOTE: STATELESS DESIGN & LOAD DISTRIBUTION
-# ------------------------------------------------------------------------------
-# 1. Stateless Design: 
-#    - All microservices are strictly stateless. 
-#    - Session state is managed via JWT; data persists in Azure Cosmos DB.
-# 2. Load Distribution:
-#    - Multiple replicas are managed by Kubernetes Deployment.
-#    - Service-based Round Robin distribution across Pods.
-# ==============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
