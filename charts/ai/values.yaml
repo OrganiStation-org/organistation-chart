@@ -1,5 +1,5 @@
 name: ai
-replicaCount: 2
+replicaCount: 1
 rollingUpdate:
   type: RollingUpdate
   maxUnavailable: 25%
