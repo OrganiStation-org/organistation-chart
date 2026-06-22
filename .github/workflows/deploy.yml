@@ -48,6 +48,9 @@ jobs:
             --create-namespace \
             -f ./${{ env.ENV_NAME }}-values.yaml \
             --set global.imageTag=${{ env.IMAGE_TAG }} \
+            --set global.keyvaultName=${{ secrets.KEYVAULT_NAME }} \
+            --set global.azureTenantId=${{ secrets.AZURE_TENANT_ID }} \
+            --set global.userAssignedIdentityID=${{ secrets.AKS_WORKLOAD_IDENTITY_ID }} \
             --wait \
             --timeout 10m \
             --atomic
