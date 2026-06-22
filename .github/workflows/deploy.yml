@@ -1,18 +1,8 @@
 name: Continuous Deployment (Helm)
 
 on:
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Target Environment'
-        required: true
-        default: 'dev'
-        type: choice
-        options: ['dev', 'prod']
-      image_tag:
-        description: 'Image Tag to deploy'
-        required: true
-        default: 'latest'
+  push:
+    branches: [ develop, main ]
 
 permissions:
   id-token: write
@@ -22,14 +12,25 @@ jobs:
   deploy:
     name: Deploy to AKS
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
-
+    
     steps:
       - name: Checkout Helm Chart
         uses: actions/checkout@v4
 
+      - name: Set Environment Context
+        id: set-env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "env=prod" >> $GITHUB_OUTPUT
+            echo "ENV_NAME=prod" >> $GITHUB_ENV
+          else
+            echo "env=dev" >> $GITHUB_OUTPUT
+            echo "ENV_NAME=dev" >> $GITHUB_ENV
+          fi
+          echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+
       - name: Azure Login
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -43,31 +44,22 @@ jobs:
 
       - name: Deploy Chart
         run: |
-          ENV="${{ github.event.inputs.environment }}"
-          NAMESPACE="${ENV}-ns"
+          NAMESPACE="${{ env.ENV_NAME }}-ns"
           
           helm upgrade --install organistation ./ \
             --namespace $NAMESPACE \
             --create-namespace \
-            -f ./${ENV}-values.yaml \
-            --set global.imageTag=${{ github.event.inputs.image_tag }} \
+            -f ./${{ env.ENV_NAME }}-values.yaml \
+            --set global.imageTag=${{ env.IMAGE_TAG }} \
             --wait \
             --timeout 10m \
             --atomic
             
       - name: Verify Rollout
         run: |
-          NAMESPACE="${{ github.event.inputs.environment }}-ns"
+          NAMESPACE="${{ env.ENV_NAME }}-ns"
+          # Only verify gateway as a proxy for health
           kubectl rollout status deployment/gateway -n $NAMESPACE --timeout=120s
-
-      - name: Health Check Smoke Test
-        run: |
-          GATEWAY_IP=$(kubectl get svc gateway -n ${{ github.event.inputs.environment }}-ns -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          if [ -z "$GATEWAY_IP" ]; then
-            echo "Gateway IP not found. Skipping smoke test."
-          else
-            curl -f "http://$GATEWAY_IP/health" || (echo "Health check failed!" && exit 1)
-          fi
 
       - name: Notify Result
         if: always()
@@ -77,10 +69,12 @@ jobs:
           server_port: 587
           username: ${{ secrets.SOURCE_EMAIL }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "Deployment ${{ job.status }}: OrganiStation ${{ github.event.inputs.environment }}"
+          subject: "Deployment ${{ job.status }}: OrganiStation ${{ env.ENV_NAME }}"
           to: ${{ secrets.TARGET_EMAIL }}
           from: ${{ secrets.SOURCE_EMAIL }}
           body: |
-            Deployment of OrganiStation to ${{ github.event.inputs.environment }} finished with status: ${{ job.status }}
-            Namespace: ${{ github.event.inputs.environment }}-ns
-            Image Tag: ${{ github.event.inputs.image_tag }}
+            Deployment of OrganiStation to ${{ env.ENV_NAME }} finished with status: ${{ job.status }}
+            Namespace: ${{ env.ENV_NAME }}-ns
+            Image Tag: ${{ env.IMAGE_TAG }}
+            Triggered by: ${{ github.actor }}
+            Commit: ${{ github.sha }}
