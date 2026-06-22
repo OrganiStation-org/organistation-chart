@@ -1,4 +1,5 @@
 global:
+  namespace: "dev-ns"
   imageTag: "" # Populated by CI
   keyvaultName: "keyvaorg-dev"
   azureTenantId: ""

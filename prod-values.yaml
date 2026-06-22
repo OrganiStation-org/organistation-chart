@@ -1,4 +1,5 @@
 global:
+  namespace: "prod-ns"
   imageTag: "" # Populated by CI
   keyvaultName: "keyvaorg-prod"
   azureTenantId: ""

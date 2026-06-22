@@ -1,6 +1,6 @@
 # Global values for OrganiStation
 global:
-  namespace: {{ .Values.global.namespace | required "A global namespace must be defined in your values file!" }}
+  namespace: "default-ns"
   keyvaultName: "your-kv-name"
   azureTenantId: "your-tenant-id"
   userAssignedIdentityID: ""
