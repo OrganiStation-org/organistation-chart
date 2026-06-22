@@ -51,6 +51,13 @@ jobs:
             --set global.keyvaultName=${{ secrets.KEYVAULT_NAME }} \
             --set global.azureTenantId=${{ secrets.AZURE_TENANT_ID }} \
             --set global.userAssignedIdentityID=${{ secrets.AKS_WORKLOAD_IDENTITY_ID }} \
+            --set auth.image.name=${{ secrets.ACR_LOGIN_SERVER }}/auth \
+            --set ai.image.name=${{ secrets.ACR_LOGIN_SERVER }}/ai \
+            --set hr.image.name=${{ secrets.ACR_LOGIN_SERVER }}/hr \
+            --set finance.image.name=${{ secrets.ACR_LOGIN_SERVER }}/finance \
+            --set projects.image.name=${{ secrets.ACR_LOGIN_SERVER }}/projects \
+            --set gateway.image.name=${{ secrets.ACR_LOGIN_SERVER }}/gateway \
+            --set notification.image.name=${{ secrets.ACR_LOGIN_SERVER }}/notification \
             --wait \
             --timeout 10m \
             --atomic
