@@ -1,11 +1,31 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: auth-ingress
+  name: api-ingress
   namespace: {{ .Values.global.namespace }}
   annotations:
     kubernetes.io/ingress.class: azure/application-gateway
     appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api/
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: auth-ingress
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/auth/"
 spec:
   rules:
     - http:
@@ -39,6 +59,7 @@ metadata:
   namespace: {{ .Values.global.namespace }}
   annotations:
     kubernetes.io/ingress.class: azure/application-gateway
+    # AI service does not have an internal prefix, so mapping /api/ai to /
     appgw.ingress.kubernetes.io/backend-path-prefix: "/"
 spec:
   rules:
@@ -55,26 +76,6 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: notification-ingress
-  namespace: {{ .Values.global.namespace }}
-  annotations:
-    kubernetes.io/ingress.class: azure/application-gateway
-    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
-spec:
-  rules:
-    - http:
-        paths:
-          - path: /api/notifications/
-            pathType: Prefix
-            backend:
-              service:
-                name: notification
-                port:
-                  number: 80
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
   name: main-ingress
   namespace: {{ .Values.global.namespace }}
   annotations:
@@ -83,20 +84,6 @@ spec:
   rules:
     - http:
         paths:
-          - path: /api/projects/
-            pathType: Prefix
-            backend:
-              service:
-                name: projects
-                port:
-                  number: 80
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: gateway
-                port:
-                  number: 80
           - path: /
             pathType: Prefix
             backend:
