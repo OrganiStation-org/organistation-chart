@@ -5,7 +5,6 @@ metadata:
   namespace: {{ .Values.global.namespace }}
   annotations:
     kubernetes.io/ingress.class: azure/application-gateway
-    # Stripping /api and using /auth as the prefix (no trailing slash to avoid double-slashing)
     appgw.ingress.kubernetes.io/backend-path-prefix: "/auth"
 spec:
   rules:
@@ -18,6 +17,19 @@ spec:
                 name: auth
                 port:
                   number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: users-ingress
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/users"
+spec:
+  rules:
+    - http:
+        paths:
           - path: /api/users
             pathType: Prefix
             backend:
@@ -29,11 +41,30 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: ai-ingress
+  name: roles-ingress
   namespace: {{ .Values.global.namespace }}
   annotations:
     kubernetes.io/ingress.class: azure/application-gateway
-    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/roles"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api/roles
+            pathType: Prefix
+            backend:
+              service:
+                name: auth
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-ingress
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
 spec:
   rules:
     - http:
@@ -45,18 +76,6 @@ spec:
                 name: ai
                 port:
                   number: 80
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: main-ingress
-  namespace: {{ .Values.global.namespace }}
-  annotations:
-    kubernetes.io/ingress.class: azure/application-gateway
-spec:
-  rules:
-    - http:
-        paths:
           - path: /api/notifications
             pathType: Prefix
             backend:
@@ -71,6 +90,32 @@ spec:
                 name: projects
                 port:
                   number: 80
+          - path: /api/hr
+            pathType: Prefix
+            backend:
+              service:
+                name: hr
+                port:
+                  number: 80
+          - path: /api/finance
+            pathType: Prefix
+            backend:
+              service:
+                name: finance
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend-ingress
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+spec:
+  rules:
+    - http:
+        paths:
           - path: /
             pathType: Prefix
             backend:
