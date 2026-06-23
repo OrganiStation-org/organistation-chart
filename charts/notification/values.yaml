@@ -11,7 +11,7 @@ image:
   pullPolicy: Always
 
 service:
-  port: 8007
+  port: 80
   targetPort: 8007
   healthPath: /health
 
