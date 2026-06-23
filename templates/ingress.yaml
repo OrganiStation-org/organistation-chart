@@ -5,7 +5,7 @@ metadata:
   namespace: {{ .Values.global.namespace }}
   annotations:
     appgw.ingress.kubernetes.io/ssl-redirect: "false"
-    appgw.ingress.kubernetes.io/request-timeout: "60"
+    appgw.ingress.kubernetes.io/request-timeout: "180"
 spec:
   ingressClassName: azure-application-gateway
   rules:
