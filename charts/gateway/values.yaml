@@ -42,8 +42,8 @@ secrets:
     key: "INTERNAL_SERVICE_SECRET"
 
 serviceUrls:
-  authPort: 8001
-  aiPort: 8000
-  hrPort: 8002
-  projectsPort: 8003
-  financePort: 8004
+  authPort: 80
+  aiPort: 80
+  hrPort: 80
+  projectsPort: 80
+  financePort: 80
