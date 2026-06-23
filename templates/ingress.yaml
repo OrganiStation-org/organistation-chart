@@ -25,7 +25,7 @@ metadata:
   namespace: {{ .Values.global.namespace }}
   annotations:
     kubernetes.io/ingress.class: azure/application-gateway
-    appgw.ingress.kubernetes.io/backend-path-prefix: "/users"
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
 spec:
   rules:
     - http:
@@ -37,19 +37,6 @@ spec:
                 name: auth
                 port:
                   number: 80
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: roles-ingress
-  namespace: {{ .Values.global.namespace }}
-  annotations:
-    kubernetes.io/ingress.class: azure/application-gateway
-    appgw.ingress.kubernetes.io/backend-path-prefix: "/roles"
-spec:
-  rules:
-    - http:
-        paths:
           - path: /api/roles
             pathType: Prefix
             backend:
@@ -61,10 +48,11 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api-ingress
+  name: ai-ingress
   namespace: {{ .Values.global.namespace }}
   annotations:
     kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
 spec:
   rules:
     - http:
@@ -76,27 +64,19 @@ spec:
                 name: ai
                 port:
                   number: 80
-          - path: /api/notifications
-            pathType: Prefix
-            backend:
-              service:
-                name: notification
-                port:
-                  number: 80
-          - path: /api/projects
-            pathType: Prefix
-            backend:
-              service:
-                name: projects
-                port:
-                  number: 80
-          - path: /api/hr
-            pathType: Prefix
-            backend:
-              service:
-                name: hr
-                port:
-                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: finance-ingress
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+spec:
+  rules:
+    - http:
+        paths:
           - path: /api/finance
             pathType: Prefix
             backend:
@@ -108,7 +88,67 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: frontend-ingress
+  name: hr-ingress
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api/hr
+            pathType: Prefix
+            backend:
+              service:
+                name: hr
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: projects-ingress
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api/projects
+            pathType: Prefix
+            backend:
+              service:
+                name: projects
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: notification-ingress
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api/notifications
+            pathType: Prefix
+            backend:
+              service:
+                name: notification
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: main-ingress
   namespace: {{ .Values.global.namespace }}
   annotations:
     kubernetes.io/ingress.class: azure/application-gateway
@@ -116,6 +156,13 @@ spec:
   rules:
     - http:
         paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 80
           - path: /
             pathType: Prefix
             backend:
