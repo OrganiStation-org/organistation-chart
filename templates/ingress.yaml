@@ -1,26 +1,6 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api-ingress
-  namespace: {{ .Values.global.namespace }}
-  annotations:
-    kubernetes.io/ingress.class: azure/application-gateway
-    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
-spec:
-  rules:
-    - http:
-        paths:
-          - path: /api/
-            pathType: Prefix
-            backend:
-              service:
-                name: gateway
-                port:
-                  number: 80
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
   name: auth-ingress
   namespace: {{ .Values.global.namespace }}
   annotations:
@@ -30,21 +10,14 @@ spec:
   rules:
     - http:
         paths:
-          - path: /api/auth/
+          - path: /api/auth
             pathType: Prefix
             backend:
               service:
                 name: auth
                 port:
                   number: 80
-          - path: /api/users/
-            pathType: Prefix
-            backend:
-              service:
-                name: auth
-                port:
-                  number: 80
-          - path: /api/roles/
+          - path: /api/users
             pathType: Prefix
             backend:
               service:
@@ -59,13 +32,12 @@ metadata:
   namespace: {{ .Values.global.namespace }}
   annotations:
     kubernetes.io/ingress.class: azure/application-gateway
-    # AI service does not have an internal prefix, so mapping /api/ai to /
     appgw.ingress.kubernetes.io/backend-path-prefix: "/"
 spec:
   rules:
     - http:
         paths:
-          - path: /api/ai/
+          - path: /api/ai
             pathType: Prefix
             backend:
               service:
@@ -84,6 +56,20 @@ spec:
   rules:
     - http:
         paths:
+          - path: /api/notifications
+            pathType: Prefix
+            backend:
+              service:
+                name: notification
+                port:
+                  number: 80
+          - path: /api/projects
+            pathType: Prefix
+            backend:
+              service:
+                name: projects
+                port:
+                  number: 80
           - path: /
             pathType: Prefix
             backend:
