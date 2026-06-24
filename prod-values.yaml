@@ -1,10 +1,9 @@
 global:
-  namespace: {{ .Values.global.namespace | required "A global namespace must be defined in your values file!" }}
+  namespace: prod-ns
   keyvaultName: "keyvaorg-prod"
   azureTenantId: ""
   userAssignedIdentityID: ""
 
-# High Availability and Full Performance for Production
 auth:
   replicaCount: 2
   resources:

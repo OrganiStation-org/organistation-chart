@@ -1,10 +1,9 @@
 global:
-  namespace: {{ .Values.global.namespace | required "A global namespace must be defined in your values file!" }}
+  namespace: dev-ns
   keyvaultName: "keyvaorg-dev"
   azureTenantId: ""
   userAssignedIdentityID: ""
 
-# Override all subcharts for dev environment
 auth:
   replicaCount: 1
   resources:
