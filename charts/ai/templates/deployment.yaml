@@ -34,7 +34,7 @@ spec:
       serviceAccountName: {{ .Values.name }}-sa
       containers:
       - name: {{ .Values.name }}
-        image: "{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        image: "{{ .Values.image.name }}:{{ .Values.global.imageTag | default .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
         - containerPort: {{ .Values.service.targetPort }}

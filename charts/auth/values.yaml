@@ -7,7 +7,7 @@ rollingUpdate:
 
 image:
   name: maheshnandi/organistation-auth
-  tag: ""
+  tag: latest
   pullPolicy: IfNotPresent
 
 service:

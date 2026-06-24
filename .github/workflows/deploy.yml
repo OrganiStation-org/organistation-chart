@@ -1,6 +1,17 @@
 name: Continuous Deployment (Helm)
 
 on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options: ['dev', 'prod']
+      image_tag:
+        description: '7-character git commit SHA image tag (e.g. a1b2c3d)'
+        required: true
   push:
     branches: [ develop, main ]
 

@@ -38,12 +38,17 @@ We use strict value separation to prevent development changes from affecting pro
 
 While the GitHub Action is preferred, you can deploy manually using:
 
+Images are tagged in ACR with the **first 7 characters of the git commit SHA** (e.g. `a1b2c3d`) by the shared CI workflow.
+
+- **`global.imageTag`**: sets the same SHA tag on every service (matches the current deploy workflow).
+- **Per-service override**: omit `global.imageTag` and set tags individually, e.g. `--set auth.image.tag=a1b2c3d --set gateway.image.tag=def5678`.
+
 **Dev Deployment**:
 ```bash
 helm upgrade --install organistation ./ \
   -n dev-ns --create-namespace \
   -f dev-values.yaml \
-  --set global.imageTag=latest
+  --set global.imageTag=a1b2c3d
 ```
 
 **Prod Deployment**:
@@ -51,7 +56,7 @@ helm upgrade --install organistation ./ \
 helm upgrade --install organistation ./ \
   -n prod-ns --create-namespace \
   -f prod-values.yaml \
-  --set global.imageTag=v1.0.0 --atomic
+  --set global.imageTag=a1b2c3d --atomic
 ```
 
 ---

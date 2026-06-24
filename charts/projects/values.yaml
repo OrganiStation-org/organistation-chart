@@ -7,7 +7,7 @@ rollingUpdate:
 
 image:
   name: maheshnandi/organistation-projects
-  tag: v1.0.0
+  tag: latest
   pullPolicy: IfNotPresent
 
 service:
