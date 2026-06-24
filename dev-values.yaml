@@ -34,6 +34,10 @@ gateway:
 
 frontend:
   replicaCount: 1
+  image:
+    name: maheshnandi/organistation-frontend
+    tag: v1.0.0
+    useAcrPullSecret: false
   resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 200m, memory: 256Mi } }
 
 notification:

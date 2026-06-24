@@ -1,7 +1,9 @@
 # Global values for OrganiStation
 global:
   namespace: dev-ns
-  imageTag: ""
+  imageTag: v1.0.0
+  imagePullSecrets:
+    - acr-secret
   keyvaultName: "your-kv-name"
   azureTenantId: "your-tenant-id"
   userAssignedIdentityID: ""

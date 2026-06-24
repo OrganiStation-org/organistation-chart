@@ -7,7 +7,7 @@ rollingUpdate:
 
 image:
   name: maheshnandi/organistation-finance
-  tag: ""
+  tag: v1.0.0
   pullPolicy: IfNotPresent
 
 service:
