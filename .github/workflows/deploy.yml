@@ -47,6 +47,7 @@ jobs:
             --namespace $NAMESPACE \
             --create-namespace \
             -f ./${{ env.ENV_NAME }}-values.yaml \
+            --set global.namespace=$NAMESPACE \
             --set global.imageTag=${{ env.IMAGE_TAG }} \
             --set global.keyvaultName=${{ secrets.KEYVAULT_NAME }} \
             --set global.azureTenantId=${{ secrets.AZURE_TENANT_ID }} \
