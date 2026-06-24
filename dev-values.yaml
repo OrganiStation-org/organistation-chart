@@ -1,9 +1,10 @@
 global:
-  namespace: dev-ns
+  namespace: {{ .Values.global.namespace | required "A global namespace must be defined in your values file!" }}
   keyvaultName: "keyvaorg-dev"
   azureTenantId: ""
   userAssignedIdentityID: ""
 
+# Override all subcharts for dev environment
 auth:
   replicaCount: 1
   resources:
@@ -34,10 +35,6 @@ gateway:
 
 frontend:
   replicaCount: 1
-  image:
-    name: maheshnandi/organistation-frontend
-    tag: v1.0.0
-    useAcrPullSecret: false
   resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 200m, memory: 256Mi } }
 
 notification:

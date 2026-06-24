@@ -1,9 +1,10 @@
 global:
-  namespace: prod-ns
+  namespace: {{ .Values.global.namespace | required "A global namespace must be defined in your values file!" }}
   keyvaultName: "keyvaorg-prod"
   azureTenantId: ""
   userAssignedIdentityID: ""
 
+# High Availability and Full Performance for Production
 auth:
   replicaCount: 2
   resources:
@@ -34,10 +35,6 @@ gateway:
 
 frontend:
   replicaCount: 2
-  image:
-    name: maheshnandi/organistation-frontend
-    tag: v1.0.0
-    useAcrPullSecret: false
   resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
 
 notification:

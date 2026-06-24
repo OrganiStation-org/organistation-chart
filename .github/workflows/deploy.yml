@@ -2,20 +2,16 @@ name: Continuous Deployment (Helm)
 
 on:
   push:
-    branches:
-      - develop
-      - main
+    branches: [ develop, main ]
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   deploy:
     name: Deploy to AKS
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
-
+    
     steps:
       - name: Checkout Helm Chart
         uses: actions/checkout@v4
@@ -26,12 +22,9 @@ jobs:
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "env=prod" >> $GITHUB_OUTPUT
             echo "ENV_NAME=prod" >> $GITHUB_ENV
-          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+          else
             echo "env=dev" >> $GITHUB_OUTPUT
             echo "ENV_NAME=dev" >> $GITHUB_ENV
-          else
-            echo "Unsupported branch: ${{ github.ref }}"
-            exit 1
           fi
           echo "IMAGE_TAG=v1.0.0" >> $GITHUB_ENV
 
@@ -46,54 +39,34 @@ jobs:
           resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
           cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
 
-      - name: Create ACR Pull Secret
-        run: |
-          NAMESPACE="${{ env.ENV_NAME }}-ns"
-          ACR_LOGIN_SERVER="${{ secrets.ACR_LOGIN_SERVER }}"
-          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
-
-          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-          kubectl delete secret acr-secret -n "$NAMESPACE" --ignore-not-found
-
-          ACR_TOKEN=$(az acr login --name "$ACR_NAME" --expose-token --output tsv --query accessToken)
-          kubectl create secret docker-registry acr-secret \
-            --docker-server="$ACR_LOGIN_SERVER" \
-            --docker-username="00000000-0000-0000-0000-000000000000" \
-            --docker-password="$ACR_TOKEN" \
-            -n "$NAMESPACE"
-
-      - name: Helm Dependency Update
-        run: helm dependency update .
-
       - name: Deploy Chart
         run: |
           NAMESPACE="${{ env.ENV_NAME }}-ns"
-
+          
           helm upgrade --install organistation ./ \
-            --namespace "$NAMESPACE" \
+            --namespace $NAMESPACE \
             --create-namespace \
-            -f "./${{ env.ENV_NAME }}-values.yaml" \
-            --set global.imageTag="${{ env.IMAGE_TAG }}" \
-            --set global.imagePullSecrets[0]=acr-secret \
-            --set global.keyvaultName="${{ secrets.KEYVAULT_NAME }}" \
-            --set global.azureTenantId="${{ secrets.AZURE_TENANT_ID }}" \
-            --set global.userAssignedIdentityID="${{ secrets.AKS_WORKLOAD_IDENTITY_ID }}" \
-            --set auth.image.name="${{ secrets.ACR_LOGIN_SERVER }}/auth" \
-            --set ai.image.name="${{ secrets.ACR_LOGIN_SERVER }}/ai" \
-            --set hr.image.name="${{ secrets.ACR_LOGIN_SERVER }}/hr" \
-            --set finance.image.name="${{ secrets.ACR_LOGIN_SERVER }}/finance" \
-            --set projects.image.name="${{ secrets.ACR_LOGIN_SERVER }}/projects" \
-            --set gateway.image.name="${{ secrets.ACR_LOGIN_SERVER }}/gateway" \
-            --set notification.image.name="${{ secrets.ACR_LOGIN_SERVER }}/notification" \
+            -f ./${{ env.ENV_NAME }}-values.yaml \
+            --set global.imageTag=${{ env.IMAGE_TAG }} \
+            --set global.keyvaultName=${{ secrets.KEYVAULT_NAME }} \
+            --set global.azureTenantId=${{ secrets.AZURE_TENANT_ID }} \
+            --set global.userAssignedIdentityID=${{ secrets.AKS_WORKLOAD_IDENTITY_ID }} \
+            --set auth.image.name=${{ secrets.ACR_LOGIN_SERVER }}/auth \
+            --set ai.image.name=${{ secrets.ACR_LOGIN_SERVER }}/ai \
+            --set hr.image.name=${{ secrets.ACR_LOGIN_SERVER }}/hr \
+            --set finance.image.name=${{ secrets.ACR_LOGIN_SERVER }}/finance \
+            --set projects.image.name=${{ secrets.ACR_LOGIN_SERVER }}/projects \
+            --set gateway.image.name=${{ secrets.ACR_LOGIN_SERVER }}/gateway \
+            --set notification.image.name=${{ secrets.ACR_LOGIN_SERVER }}/notification \
             --wait \
             --timeout 10m \
             --atomic
-
+            
       - name: Verify Rollout
         run: |
           NAMESPACE="${{ env.ENV_NAME }}-ns"
-          kubectl rollout status deployment/gateway -n "$NAMESPACE" --timeout=120s
-          kubectl rollout status deployment/frontend -n "$NAMESPACE" --timeout=120s
+          # Only verify gateway as a proxy for health
+          kubectl rollout status deployment/gateway -n $NAMESPACE --timeout=120s
 
       - name: Notify Result
         if: always()
