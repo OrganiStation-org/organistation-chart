@@ -1,6 +1,5 @@
 global:
-  namespace: "prod-ns"
-  imageTag: "" # Populated by CI
+  namespace: {{ .Values.global.namespace | required "A global namespace must be defined in your values file!" }}
   keyvaultName: "keyvaorg-prod"
   azureTenantId: ""
   userAssignedIdentityID: ""

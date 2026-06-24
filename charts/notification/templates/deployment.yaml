@@ -34,7 +34,7 @@ spec:
       serviceAccountName: {{ .Values.name }}-sa
       containers:
       - name: {{ .Values.name }}
-        image: "{{ .Values.image.name }}:{{ .Values.global.imageTag | default .Values.image.tag }}"
+        image: "{{ .Values.image.name }}:{{ .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
         - containerPort: {{ .Values.service.targetPort }}
@@ -51,24 +51,18 @@ spec:
           mountPath: "/mnt/secrets-store"
           readOnly: true
         {{- end }}
-        startupProbe:
-          httpGet:
-            path: {{ .Values.service.healthPath | default "/health" }}
-            port: {{ .Values.service.targetPort }}
-          failureThreshold: 15
-          periodSeconds: 10
         readinessProbe:
           httpGet:
             path: {{ .Values.service.healthPath | default "/health" }}
             port: {{ .Values.service.targetPort }}
-          initialDelaySeconds: 5
-          periodSeconds: 10
+          initialDelaySeconds: 10
+          periodSeconds: 15
         livenessProbe:
           httpGet:
             path: {{ .Values.service.healthPath | default "/health" }}
             port: {{ .Values.service.targetPort }}
-          initialDelaySeconds: 5
-          periodSeconds: 15
+          initialDelaySeconds: 30
+          periodSeconds: 20
       {{- if .Values.secrets }}
       volumes:
       - name: secrets-store-inline

@@ -8,20 +8,20 @@ rollingUpdate:
 image:
   name: maheshnandi/organistation-notification
   tag: v1.0.0
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
 
 service:
-  port: 80
-  targetPort: 8007
+  port: 8005
+  targetPort: 8005
   healthPath: /health
 
 resources:
   requests:
     cpu: 100m
-    memory: 256Mi
+    memory: 128Mi
   limits:
     cpu: 500m
-    memory: 1Gi
+    memory: 512Mi
 
 secrets:
   - name: "SERVICE-BUS-NAMESPACE"
