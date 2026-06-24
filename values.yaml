@@ -1,11 +1,10 @@
 # Global values for OrganiStation
 global:
   namespace: dev-ns
-  imageTag: ""
   keyvaultName: "your-kv-name"
   azureTenantId: "your-tenant-id"
   userAssignedIdentityID: ""
-  # 7-char git SHA from CI (e.g. a1b2c3d). Override via --set global.imageTag=<sha>
+  # Optional: one SHA for all services. Per-service image.tag overrides this.
   imageTag: ""
 
 auth:

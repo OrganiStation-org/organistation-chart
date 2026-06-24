@@ -10,8 +10,9 @@ on:
         type: choice
         options: ['dev', 'prod']
       image_tag:
-        description: '7-character git commit SHA image tag (e.g. a1b2c3d)'
-        required: true
+        description: 'Optional 7-char SHA for all services. Leave empty to use latest tag per service from ACR.'
+        required: false
+        default: ''
   push:
     branches: [ develop, main ]
 
@@ -22,7 +23,7 @@ jobs:
   deploy:
     name: Deploy to AKS
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Helm Chart
         uses: actions/checkout@v4
@@ -30,14 +31,16 @@ jobs:
       - name: Set Environment Context
         id: set-env
         run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "env=prod" >> $GITHUB_OUTPUT
-            echo "ENV_NAME=prod" >> $GITHUB_ENV
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "env=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
+            echo "ENV_NAME=${{ github.event.inputs.environment }}" >> "$GITHUB_ENV"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "env=prod" >> "$GITHUB_OUTPUT"
+            echo "ENV_NAME=prod" >> "$GITHUB_ENV"
           else
-            echo "env=dev" >> $GITHUB_OUTPUT
-            echo "ENV_NAME=dev" >> $GITHUB_ENV
+            echo "env=dev" >> "$GITHUB_OUTPUT"
+            echo "ENV_NAME=dev" >> "$GITHUB_ENV"
           fi
-          echo "IMAGE_TAG=v1.0.0" >> $GITHUB_ENV
 
       - name: Azure Login
         uses: azure/login@v2
@@ -50,35 +53,95 @@ jobs:
           resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
           cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
 
-      - name: Deploy Chart
+      - name: Resolve image tags from ACR
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+          MANUAL_TAG: ${{ github.event.inputs.image_tag }}
         run: |
-          NAMESPACE="${{ env.ENV_NAME }}-ns"
-          
-          helm upgrade --install organistation ./ \
-            --namespace $NAMESPACE \
-            --create-namespace \
-            -f ./${{ env.ENV_NAME }}-values.yaml \
-            --set global.namespace=$NAMESPACE \
-            --set global.imageTag=${{ env.IMAGE_TAG }} \
-            --set global.keyvaultName=${{ secrets.KEYVAULT_NAME }} \
-            --set global.azureTenantId=${{ secrets.AZURE_TENANT_ID }} \
-            --set global.userAssignedIdentityID=${{ secrets.AKS_WORKLOAD_IDENTITY_ID }} \
-            --set auth.image.name=${{ secrets.ACR_LOGIN_SERVER }}/auth \
-            --set ai.image.name=${{ secrets.ACR_LOGIN_SERVER }}/ai \
-            --set hr.image.name=${{ secrets.ACR_LOGIN_SERVER }}/hr \
-            --set finance.image.name=${{ secrets.ACR_LOGIN_SERVER }}/finance \
-            --set projects.image.name=${{ secrets.ACR_LOGIN_SERVER }}/projects \
-            --set gateway.image.name=${{ secrets.ACR_LOGIN_SERVER }}/gateway \
-            --set notification.image.name=${{ secrets.ACR_LOGIN_SERVER }}/notification \
-            --wait \
-            --timeout 10m \
+          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
+
+          latest_tag() {
+            az acr repository show-tags \
+              --name "$ACR_NAME" \
+              --repository "$1" \
+              --orderby time_desc \
+              --top 1 \
+              -o tsv 2>/dev/null || true
+          }
+
+          if [[ -n "$MANUAL_TAG" ]]; then
+            echo "Using manual tag for all services: $MANUAL_TAG"
+            for svc in auth ai hr finance projects gateway notification; do
+              echo "${svc^^}_TAG=$MANUAL_TAG" >> "$GITHUB_ENV"
+            done
+          else
+            echo "Resolving latest SHA tag per service from ACR: $ACR_NAME"
+            for svc in auth ai hr finance projects gateway notification; do
+              tag="$(latest_tag "$svc")"
+              if [[ -z "$tag" ]]; then
+                echo "No tags found in ACR for repository: $svc"
+                exit 1
+              fi
+              echo "  $svc -> $tag"
+              echo "${svc^^}_TAG=$tag" >> "$GITHUB_ENV"
+            done
+          fi
+
+          FRONTEND_TAG="$(latest_tag frontend || true)"
+          if [[ -n "$FRONTEND_TAG" ]]; then
+            echo "FRONTEND_TAG=$FRONTEND_TAG" >> "$GITHUB_ENV"
+            echo "FRONTEND_ENABLED=true" >> "$GITHUB_ENV"
+          else
+            echo "Frontend repository not found in ACR; disabling frontend for this deploy."
+            echo "FRONTEND_ENABLED=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Deploy Chart
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+        run: |
+          NAMESPACE="${ENV_NAME}-ns"
+
+          HELM_ARGS=(
+            helm upgrade --install organistation ./
+            --namespace "$NAMESPACE"
+            --create-namespace
+            -f "./${ENV_NAME}-values.yaml"
+            --set "global.namespace=$NAMESPACE"
+            --set "global.keyvaultName=${{ secrets.KEYVAULT_NAME }}"
+            --set "global.azureTenantId=${{ secrets.AZURE_TENANT_ID }}"
+            --set "global.userAssignedIdentityID=${{ secrets.AKS_WORKLOAD_IDENTITY_ID }}"
+            --set "auth.image.name=${ACR_LOGIN_SERVER}/auth"
+            --set "auth.image.tag=${AUTH_TAG}"
+            --set "ai.image.name=${ACR_LOGIN_SERVER}/ai"
+            --set "ai.image.tag=${AI_TAG}"
+            --set "hr.image.name=${ACR_LOGIN_SERVER}/hr"
+            --set "hr.image.tag=${HR_TAG}"
+            --set "finance.image.name=${ACR_LOGIN_SERVER}/finance"
+            --set "finance.image.tag=${FINANCE_TAG}"
+            --set "projects.image.name=${ACR_LOGIN_SERVER}/projects"
+            --set "projects.image.tag=${PROJECTS_TAG}"
+            --set "gateway.image.name=${ACR_LOGIN_SERVER}/gateway"
+            --set "gateway.image.tag=${GATEWAY_TAG}"
+            --set "notification.image.name=${ACR_LOGIN_SERVER}/notification"
+            --set "notification.image.tag=${NOTIFICATION_TAG}"
+            --set "frontend.enabled=${FRONTEND_ENABLED}"
+            --wait
+            --timeout 10m
             --atomic
-            
+          )
+
+          if [[ "${FRONTEND_ENABLED}" == "true" ]]; then
+            HELM_ARGS+=(--set "frontend.image.name=${ACR_LOGIN_SERVER}/frontend")
+            HELM_ARGS+=(--set "frontend.image.tag=${FRONTEND_TAG}")
+          fi
+
+          "${HELM_ARGS[@]}"
+
       - name: Verify Rollout
         run: |
-          NAMESPACE="${{ env.ENV_NAME }}-ns"
-          # Only verify gateway as a proxy for health
-          kubectl rollout status deployment/gateway -n $NAMESPACE --timeout=120s
+          NAMESPACE="${ENV_NAME}-ns"
+          kubectl rollout status deployment/gateway -n "$NAMESPACE" --timeout=120s
 
       - name: Notify Result
         if: always()
@@ -94,6 +157,9 @@ jobs:
           body: |
             Deployment of OrganiStation to ${{ env.ENV_NAME }} finished with status: ${{ job.status }}
             Namespace: ${{ env.ENV_NAME }}-ns
-            Image Tag: ${{ env.IMAGE_TAG }}
+            Auth tag: ${{ env.AUTH_TAG }}
+            Gateway tag: ${{ env.GATEWAY_TAG }}
+            Notification tag: ${{ env.NOTIFICATION_TAG }}
+            Frontend enabled: ${{ env.FRONTEND_ENABLED }}
             Triggered by: ${{ github.actor }}
             Commit: ${{ github.sha }}

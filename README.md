@@ -38,25 +38,32 @@ We use strict value separation to prevent development changes from affecting pro
 
 While the GitHub Action is preferred, you can deploy manually using:
 
-Images are tagged in ACR with the **first 7 characters of the git commit SHA** (e.g. `a1b2c3d`) by the shared CI workflow.
+Images are tagged in ACR with the **first 7 characters of the git commit SHA** (e.g. `a1b2c3d`). Each microservice has its own tag in ACR.
 
-- **`global.imageTag`**: sets the same SHA tag on every service (matches the current deploy workflow).
-- **Per-service override**: omit `global.imageTag` and set tags individually, e.g. `--set auth.image.tag=a1b2c3d --set gateway.image.tag=def5678`.
+The deploy workflow resolves the **latest tag per repository** from ACR automatically. You can also pass one SHA for all services via workflow dispatch.
 
-**Dev Deployment**:
+**Manual deploy (per-service tags from your ACR list)**:
 ```bash
 helm upgrade --install organistation ./ \
   -n dev-ns --create-namespace \
   -f dev-values.yaml \
-  --set global.imageTag=a1b2c3d
+  --set global.namespace=dev-ns \
+  --set auth.image.name=mahesh6l0facrprod.azurecr.io/auth \
+  --set auth.image.tag=37af23c \
+  --set notification.image.name=mahesh6l0facrprod.azurecr.io/notification \
+  --set notification.image.tag=d528b9c \
+  --set gateway.image.name=mahesh6l0facrprod.azurecr.io/gateway \
+  --set gateway.image.tag=80dd4f3
+  # ...repeat for ai, hr, finance, projects
 ```
 
-**Prod Deployment**:
+**Prod deploy**:
 ```bash
 helm upgrade --install organistation ./ \
   -n prod-ns --create-namespace \
   -f prod-values.yaml \
-  --set global.imageTag=a1b2c3d --atomic
+  --set auth.image.tag=<latest-auth-sha> \
+  --atomic
 ```
 
 ---
