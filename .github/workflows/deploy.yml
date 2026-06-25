@@ -113,21 +113,7 @@ jobs:
           KEYVAULT_NAME: ${{ secrets.KEYVAULT_NAME }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AKS_WORKLOAD_IDENTITY_ID: ${{ secrets.AKS_WORKLOAD_IDENTITY_ID }}
-        run: |
-          NAMESPACE="${ENV_NAME}-ns"
-          
-          # Set target revision based on environment
-          if [[ "${ENV_NAME}" == "prod" ]]; then
-            export TARGET_REVISION="main"
-          else
-            export TARGET_REVISION="develop"
-          fi
-          
-          TEMPLATE_PATH="shared-workflows/argocd/${ENV_NAME}-argocd.yaml"
-          if [[ ! -f "$TEMPLATE_PATH" ]]; then
-            echo "Template file not found at $TEMPLATE_PATH. Writing inline fallback."
-            mkdir -p shared-workflows
-            cat << 'EOF' > "$TEMPLATE_PATH"
+          ARGO_TEMPLATE: |
             apiVersion: argoproj.io/v1alpha1
             kind: Application
             metadata:
@@ -194,8 +180,21 @@ jobs:
                   selfHeal: true
                 syncOptions:
                   - CreateNamespace=true
-            EOF
-            sed -i 's/^            //' "$TEMPLATE_PATH"
+        run: |
+          NAMESPACE="${ENV_NAME}-ns"
+          
+          # Set target revision based on environment
+          if [[ "${ENV_NAME}" == "prod" ]]; then
+            export TARGET_REVISION="main"
+          else
+            export TARGET_REVISION="develop"
+          fi
+          
+          TEMPLATE_PATH="shared-workflows/argocd/${ENV_NAME}-argocd.yaml"
+          if [[ ! -f "$TEMPLATE_PATH" ]]; then
+            echo "Template file not found at $TEMPLATE_PATH. Writing inline fallback."
+            mkdir -p shared-workflows/argocd
+            echo "$ARGO_TEMPLATE" > "$TEMPLATE_PATH"
           fi
 
           # Substitute environment variables in template
