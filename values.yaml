@@ -1,4 +1,4 @@
-# Global values for OrganiStation
+# Global values for OrganiStation - Trigger Deployment
 global:
   namespace: dev-ns
   keyvaultName: "your-kv-name"
