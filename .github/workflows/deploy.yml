@@ -130,47 +130,47 @@ jobs:
                     - ${ENV_NAME}-values.yaml
                   parameters:
                     - name: global.namespace
-                      value: ${ENV_NAME}-ns
+                      value: "${ENV_NAME}-ns"
                     - name: global.keyvaultName
-                      value: ${KEYVAULT_NAME}
+                      value: "${KEYVAULT_NAME}"
                     - name: global.azureTenantId
-                      value: ${AZURE_TENANT_ID}
+                      value: "${AZURE_TENANT_ID}"
                     - name: global.userAssignedIdentityID
-                      value: ${AKS_WORKLOAD_IDENTITY_ID}
+                      value: "${AKS_WORKLOAD_IDENTITY_ID}"
                     - name: auth.image.name
-                      value: ${ACR_LOGIN_SERVER}/auth
+                      value: "${ACR_LOGIN_SERVER}/auth"
                     - name: auth.image.tag
-                      value: ${AUTH_TAG}
+                      value: "${AUTH_TAG}"
                     - name: ai.image.name
-                      value: ${ACR_LOGIN_SERVER}/ai
+                      value: "${ACR_LOGIN_SERVER}/ai"
                     - name: ai.image.tag
-                      value: ${AI_TAG}
+                      value: "${AI_TAG}"
                     - name: hr.image.name
-                      value: ${ACR_LOGIN_SERVER}/hr
+                      value: "${ACR_LOGIN_SERVER}/hr"
                     - name: hr.image.tag
-                      value: ${HR_TAG}
+                      value: "${HR_TAG}"
                     - name: finance.image.name
-                      value: ${ACR_LOGIN_SERVER}/finance
+                      value: "${ACR_LOGIN_SERVER}/finance"
                     - name: finance.image.tag
-                      value: ${FINANCE_TAG}
+                      value: "${FINANCE_TAG}"
                     - name: projects.image.name
-                      value: ${ACR_LOGIN_SERVER}/projects
+                      value: "${ACR_LOGIN_SERVER}/projects"
                     - name: projects.image.tag
-                      value: ${PROJECTS_TAG}
+                      value: "${PROJECTS_TAG}"
                     - name: gateway.image.name
-                      value: ${ACR_LOGIN_SERVER}/gateway
+                      value: "${ACR_LOGIN_SERVER}/gateway"
                     - name: gateway.image.tag
-                      value: ${GATEWAY_TAG}
+                      value: "${GATEWAY_TAG}"
                     - name: notification.image.name
-                      value: ${ACR_LOGIN_SERVER}/notification
+                      value: "${ACR_LOGIN_SERVER}/notification"
                     - name: notification.image.tag
-                      value: ${NOTIFICATION_TAG}
+                      value: "${NOTIFICATION_TAG}"
                     - name: frontend.enabled
                       value: "${FRONTEND_ENABLED}"
                     - name: frontend.image.name
-                      value: ${FRONTEND_IMAGE_NAME}
+                      value: "${FRONTEND_IMAGE_NAME}"
                     - name: frontend.image.tag
-                      value: ${FRONTEND_TAG}
+                      value: "${FRONTEND_TAG}"
               destination:
                 server: https://kubernetes.default.svc
                 namespace: ${ENV_NAME}-ns
