@@ -89,11 +89,14 @@ jobs:
 
           FRONTEND_TAG="$(latest_tag frontend || true)"
           if [[ -n "$FRONTEND_TAG" ]]; then
+            echo "FRONTEND_IMAGE_NAME=${ACR_LOGIN_SERVER}/frontend" >> "$GITHUB_ENV"
             echo "FRONTEND_TAG=$FRONTEND_TAG" >> "$GITHUB_ENV"
             echo "FRONTEND_ENABLED=true" >> "$GITHUB_ENV"
           else
-            echo "Frontend repository not found in ACR; disabling frontend for this deploy."
-            echo "FRONTEND_ENABLED=false" >> "$GITHUB_ENV"
+            echo "Frontend repository not found in ACR; falling back to Docker Hub."
+            echo "FRONTEND_IMAGE_NAME=maheshnandi/organistation-frontend" >> "$GITHUB_ENV"
+            echo "FRONTEND_TAG=latest" >> "$GITHUB_ENV"
+            echo "FRONTEND_ENABLED=true" >> "$GITHUB_ENV"
           fi
 
       - name: Deploy Chart
@@ -132,7 +135,7 @@ jobs:
           )
 
           if [[ "${FRONTEND_ENABLED}" == "true" ]]; then
-            HELM_ARGS+=(--set "frontend.image.name=${ACR_LOGIN_SERVER}/frontend")
+            HELM_ARGS+=(--set "frontend.image.name=${FRONTEND_IMAGE_NAME}")
             HELM_ARGS+=(--set "frontend.image.tag=${FRONTEND_TAG}")
           fi
 
