@@ -12,7 +12,7 @@ auth:
     limits: { cpu: 500m, memory: 512Mi }
 
 ai:
-  replicaCount: 2
+  replicaCount: 1
   resources:
     requests: { cpu: 300m, memory: 512Mi }
     limits: { cpu: 1000m, memory: 1024Mi }
@@ -34,7 +34,7 @@ gateway:
   resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
 
 frontend:
-  replicaCount: 2
+  replicaCount: 3
   resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
 
 notification:
