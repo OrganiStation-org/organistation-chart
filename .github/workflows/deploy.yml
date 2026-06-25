@@ -26,7 +26,15 @@ jobs:
 
     steps:
       - name: Checkout Helm Chart
+        uses:actions/checkout@v4
+
+      - name: Checkout Shared Workflows
         uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: OrganiStation-org/shared-workflows
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: shared-workflows
 
       - name: Set Environment Context
         id: set-env
@@ -99,52 +107,127 @@ jobs:
             echo "FRONTEND_ENABLED=true" >> "$GITHUB_ENV"
           fi
 
-      - name: Deploy Chart
+      - name: Deploy via ArgoCD
         env:
           ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+          KEYVAULT_NAME: ${{ secrets.KEYVAULT_NAME }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AKS_WORKLOAD_IDENTITY_ID: ${{ secrets.AKS_WORKLOAD_IDENTITY_ID }}
         run: |
           NAMESPACE="${ENV_NAME}-ns"
-
-          HELM_ARGS=(
-            helm upgrade --install organistation ./
-            --namespace "$NAMESPACE"
-            --create-namespace
-            -f "./${ENV_NAME}-values.yaml"
-            --set "global.namespace=$NAMESPACE"
-            --set "global.keyvaultName=${{ secrets.KEYVAULT_NAME }}"
-            --set "global.azureTenantId=${{ secrets.AZURE_TENANT_ID }}"
-            --set "global.userAssignedIdentityID=${{ secrets.AKS_WORKLOAD_IDENTITY_ID }}"
-            --set "auth.image.name=${ACR_LOGIN_SERVER}/auth"
-            --set "auth.image.tag=${AUTH_TAG}"
-            --set "ai.image.name=${ACR_LOGIN_SERVER}/ai"
-            --set "ai.image.tag=${AI_TAG}"
-            --set "hr.image.name=${ACR_LOGIN_SERVER}/hr"
-            --set "hr.image.tag=${HR_TAG}"
-            --set "finance.image.name=${ACR_LOGIN_SERVER}/finance"
-            --set "finance.image.tag=${FINANCE_TAG}"
-            --set "projects.image.name=${ACR_LOGIN_SERVER}/projects"
-            --set "projects.image.tag=${PROJECTS_TAG}"
-            --set "gateway.image.name=${ACR_LOGIN_SERVER}/gateway"
-            --set "gateway.image.tag=${GATEWAY_TAG}"
-            --set "notification.image.name=${ACR_LOGIN_SERVER}/notification"
-            --set "notification.image.tag=${NOTIFICATION_TAG}"
-            --set "frontend.enabled=${FRONTEND_ENABLED}"
-            --wait
-            --timeout 10m
-            --atomic
-          )
-
-          if [[ "${FRONTEND_ENABLED}" == "true" ]]; then
-            HELM_ARGS+=(--set "frontend.image.name=${FRONTEND_IMAGE_NAME}")
-            HELM_ARGS+=(--set "frontend.image.tag=${FRONTEND_TAG}")
+          
+          # Set target revision based on environment
+          if [[ "${ENV_NAME}" == "prod" ]]; then
+            export TARGET_REVISION="main"
+          else
+            export TARGET_REVISION="develop"
+          fi
+          
+          TEMPLATE_PATH="shared-workflows/${ENV_NAME}-argocd.yaml"
+          if [[ ! -f "$TEMPLATE_PATH" ]]; then
+            echo "Template file not found at $TEMPLATE_PATH. Writing inline fallback."
+            mkdir -p shared-workflows
+            cat << 'EOF' > "$TEMPLATE_PATH"
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: organistation-${ENV_NAME}
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/OrganiStation-org/organistation-chart.git
+    targetRevision: ${TARGET_REVISION}
+    path: .
+    helm:
+      valueFiles:
+        - ${ENV_NAME}-values.yaml
+      parameters:
+        - name: global.namespace
+          value: ${ENV_NAME}-ns
+        - name: global.keyvaultName
+          value: ${KEYVAULT_NAME}
+        - name: global.azureTenantId
+          value: ${AZURE_TENANT_ID}
+        - name: global.userAssignedIdentityID
+          value: ${AKS_WORKLOAD_IDENTITY_ID}
+        - name: auth.image.name
+          value: ${ACR_LOGIN_SERVER}/auth
+        - name: auth.image.tag
+          value: ${AUTH_TAG}
+        - name: ai.image.name
+          value: ${ACR_LOGIN_SERVER}/ai
+        - name: ai.image.tag
+          value: ${AI_TAG}
+        - name: hr.image.name
+          value: ${ACR_LOGIN_SERVER}/hr
+        - name: hr.image.tag
+          value: ${HR_TAG}
+        - name: finance.image.name
+          value: ${ACR_LOGIN_SERVER}/finance
+        - name: finance.image.tag
+          value: ${FINANCE_TAG}
+        - name: projects.image.name
+          value: ${ACR_LOGIN_SERVER}/projects
+        - name: projects.image.tag
+          value: ${PROJECTS_TAG}
+        - name: gateway.image.name
+          value: ${ACR_LOGIN_SERVER}/gateway
+        - name: gateway.image.tag
+          value: ${GATEWAY_TAG}
+        - name: notification.image.name
+          value: ${ACR_LOGIN_SERVER}/notification
+        - name: notification.image.tag
+          value: ${NOTIFICATION_TAG}
+        - name: frontend.enabled
+          value: "${FRONTEND_ENABLED}"
+        - name: frontend.image.name
+          value: ${FRONTEND_IMAGE_NAME}
+        - name: frontend.image.tag
+          value: ${FRONTEND_TAG}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${ENV_NAME}-ns
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+EOF
           fi
 
-          "${HELM_ARGS[@]}"
+          # Substitute environment variables in template
+          envsubst < "$TEMPLATE_PATH" > argocd-final.yaml
+          
+          echo "Applying generated ArgoCD Application Manifest:"
+          cat argocd-final.yaml
+          
+          kubectl apply -f argocd-final.yaml
+          
+          echo "Waiting 15 seconds for sync to initiate..."
+          sleep 15
+          
+          # Wait for application sync status
+          kubectl wait --for=jsonpath='{.status.sync.status}'=Synced application/organistation-${ENV_NAME} -n argocd --timeout=300s || true
 
       - name: Verify Rollout
         run: |
           NAMESPACE="${ENV_NAME}-ns"
-          kubectl rollout status deployment/gateway -n "$NAMESPACE" --timeout=120s
+          
+          # Install kubectl argo rollouts plugin
+          echo "Installing kubectl argo rollouts plugin..."
+          curl -LO https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64
+          chmod +x ./kubectl-argo-rollouts-linux-amd64
+          sudo mv ./kubectl-argo-rollouts-linux-amd64 /usr/local/bin/kubectl-argo-rollouts
+          
+          if kubectl get rollout gateway -n "$NAMESPACE" &>/dev/null; then
+            echo "Verifying Rollout status for gateway..."
+            kubectl argo rollouts status gateway -n "$NAMESPACE" --timeout 120s
+          else
+            echo "Gateway Rollout not found. Verifying Deployment status instead..."
+            kubectl rollout status deployment/gateway -n "$NAMESPACE" --timeout=120s
+          fi
 
       - name: Notify Result
         if: always()
