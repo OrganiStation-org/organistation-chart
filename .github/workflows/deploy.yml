@@ -123,7 +123,7 @@ jobs:
             export TARGET_REVISION="develop"
           fi
           
-          TEMPLATE_PATH="shared-workflows/${ENV_NAME}-argocd.yaml"
+          TEMPLATE_PATH="shared-workflows/argocd/${ENV_NAME}-argocd.yaml"
           if [[ ! -f "$TEMPLATE_PATH" ]]; then
             echo "Template file not found at $TEMPLATE_PATH. Writing inline fallback."
             mkdir -p shared-workflows
