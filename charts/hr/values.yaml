@@ -11,7 +11,7 @@ image:
   pullPolicy: IfNotPresent
 
 service:
-  port: 8002
+  port: 80
   targetPort: 8002
   healthPath: /health
 
