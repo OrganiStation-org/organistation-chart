@@ -1,5 +1,5 @@
 name: ai
-replicaCount: 2
+replicaCount: 1
 rollingUpdate:
   type: RollingUpdate
   maxUnavailable: 25%
@@ -7,21 +7,21 @@ rollingUpdate:
 
 image:
   name: maheshnandi/organistation-ai
-  tag: v1.0.0
+  tag: latest
   pullPolicy: IfNotPresent
 
 service:
-  port: 8000
+  port: 80
   targetPort: 8000
   healthPath: /health
 
 resources:
   requests:
-    cpu: 100m
-    memory: 128Mi
-  limits:
-    cpu: 500m
+    cpu: 250m
     memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1.5Gi
 
 secrets:
   - name: "GROQ-API-KEY"
@@ -32,5 +32,5 @@ secrets:
 persistence:
   enabled: true
   size: 5Gi
-  storageClass: azurefile-csi
+  storageClass: default # Switched from azurefile-csi to default for better AKS compatibility
   mountPath: /app/chroma_db

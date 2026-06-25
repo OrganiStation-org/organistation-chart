@@ -1,33 +1,23 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Values.ingress.name | default "organistation-ingress" }}
-  namespace: {{ .Values.global.namespace | required "A global namespace must be defined in your values file!" }}
+  name: organistation-ingress
+  namespace: {{ .Values.global.namespace }}
   annotations:
-    appgw.ingress.kubernetes.io/ssl-redirect: "{{ .Values.ingress.sslRedirect | default "false" }}"
-    appgw.ingress.kubernetes.io/override-frontend-port: "{{ .Values.ingress.port | default "80" }}"
+    appgw.ingress.kubernetes.io/ssl-redirect: "false"
+    appgw.ingress.kubernetes.io/request-timeout: "180"
 spec:
   ingressClassName: azure-application-gateway
-
   rules:
     - http:
         paths:
-          - path: /api/notifications
-            pathType: Prefix
-            backend:
-              service:
-                name: notification
-                port:
-                  number: 80
-
           - path: /api
             pathType: Prefix
             backend:
               service:
                 name: gateway
                 port:
-                  number: 80
-
+                  number: 3000
           - path: /
             pathType: Prefix
             backend:

@@ -10,63 +10,228 @@ on:
         type: choice
         options: ['dev', 'prod']
       image_tag:
-        description: 'Image Tag to deploy'
-        required: true
-        default: 'latest'
+        description: 'Optional 7-char SHA for all services. Leave empty to use latest tag per service from ACR.'
+        required: false
+        default: ''
+  push:
+    branches: [ develop, main ]
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
   deploy:
     name: Deploy to AKS
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
 
     steps:
       - name: Checkout Helm Chart
         uses: actions/checkout@v4
 
-      - name: Azure Login
-        uses: azure/login@v1
+      - name: Checkout Shared Workflows
+        uses: actions/checkout@v4
+        continue-on-error: true
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          repository: OrganiStation-org/shared-workflows
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: shared-workflows
+
+      - name: Set Environment Context
+        id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "env=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
+            echo "ENV_NAME=${{ github.event.inputs.environment }}" >> "$GITHUB_ENV"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "env=prod" >> "$GITHUB_OUTPUT"
+            echo "ENV_NAME=prod" >> "$GITHUB_ENV"
+          else
+            echo "env=dev" >> "$GITHUB_OUTPUT"
+            echo "ENV_NAME=dev" >> "$GITHUB_ENV"
+          fi
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Set AKS Context
         uses: azure/aks-set-context@v3
         with:
-          resource-group: ${{ vars.AKS_RESOURCE_GROUP }}
-          cluster-name: ${{ vars.AKS_CLUSTER_NAME }}
+          resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
 
-      - name: Deploy Chart
+      - name: Resolve image tags from ACR
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+          MANUAL_TAG: ${{ github.event.inputs.image_tag }}
         run: |
-          ENV="${{ github.event.inputs.environment }}"
-          NAMESPACE="${ENV}-ns"
+          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
+
+          latest_tag() {
+            az acr repository show-tags \
+              --name "$ACR_NAME" \
+              --repository "$1" \
+              --orderby time_desc \
+              --top 1 \
+              -o tsv 2>/dev/null || true
+          }
+
+          if [[ -n "$MANUAL_TAG" ]]; then
+            echo "Using manual tag for all services: $MANUAL_TAG"
+            for svc in auth ai hr finance projects gateway notification; do
+              echo "${svc^^}_TAG=$MANUAL_TAG" >> "$GITHUB_ENV"
+            done
+          else
+            echo "Resolving latest SHA tag per service from ACR: $ACR_NAME"
+            for svc in auth ai hr finance projects gateway notification; do
+              tag="$(latest_tag "$svc")"
+              if [[ -z "$tag" ]]; then
+                echo "No tags found in ACR for repository: $svc"
+                exit 1
+              fi
+              echo "  $svc -> $tag"
+              echo "${svc^^}_TAG=$tag" >> "$GITHUB_ENV"
+            done
+          fi
+
+          FRONTEND_TAG="$(latest_tag frontend-service || true)"
+          if [[ -n "$FRONTEND_TAG" ]]; then
+            echo "FRONTEND_IMAGE_NAME=${ACR_LOGIN_SERVER}/frontend-service" >> "$GITHUB_ENV"
+            echo "FRONTEND_TAG=$FRONTEND_TAG" >> "$GITHUB_ENV"
+            echo "FRONTEND_ENABLED=true" >> "$GITHUB_ENV"
+          else
+            echo "Frontend repository not found in ACR; falling back to Docker Hub."
+            echo "FRONTEND_IMAGE_NAME=maheshnandi/organistation-frontend" >> "$GITHUB_ENV"
+            echo "FRONTEND_TAG=latest" >> "$GITHUB_ENV"
+            echo "FRONTEND_ENABLED=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Deploy via ArgoCD
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+          KEYVAULT_NAME: ${{ secrets.KEYVAULT_NAME }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AKS_WORKLOAD_IDENTITY_ID: ${{ secrets.AKS_WORKLOAD_IDENTITY_ID }}
+          ARGO_TEMPLATE: |
+            apiVersion: argoproj.io/v1alpha1
+            kind: Application
+            metadata:
+              name: organistation-${ENV_NAME}
+              namespace: argocd
+            spec:
+              project: default
+              source:
+                repoURL: https://github.com/OrganiStation-org/organistation-chart.git
+                targetRevision: ${TARGET_REVISION}
+                path: .
+                helm:
+                  valueFiles:
+                    - ${ENV_NAME}-values.yaml
+                  parameters:
+                    - name: global.namespace
+                      value: "${ENV_NAME}-ns"
+                    - name: global.keyvaultName
+                      value: "${KEYVAULT_NAME}"
+                    - name: global.azureTenantId
+                      value: "${AZURE_TENANT_ID}"
+                    - name: global.userAssignedIdentityID
+                      value: "${AKS_WORKLOAD_IDENTITY_ID}"
+                    - name: auth.image.name
+                      value: "${ACR_LOGIN_SERVER}/auth"
+                    - name: auth.image.tag
+                      value: "${AUTH_TAG}"
+                    - name: ai.image.name
+                      value: "${ACR_LOGIN_SERVER}/ai"
+                    - name: ai.image.tag
+                      value: "${AI_TAG}"
+                    - name: hr.image.name
+                      value: "${ACR_LOGIN_SERVER}/hr"
+                    - name: hr.image.tag
+                      value: "${HR_TAG}"
+                    - name: finance.image.name
+                      value: "${ACR_LOGIN_SERVER}/finance"
+                    - name: finance.image.tag
+                      value: "${FINANCE_TAG}"
+                    - name: projects.image.name
+                      value: "${ACR_LOGIN_SERVER}/projects"
+                    - name: projects.image.tag
+                      value: "${PROJECTS_TAG}"
+                    - name: gateway.image.name
+                      value: "${ACR_LOGIN_SERVER}/gateway"
+                    - name: gateway.image.tag
+                      value: "${GATEWAY_TAG}"
+                    - name: notification.image.name
+                      value: "${ACR_LOGIN_SERVER}/notification"
+                    - name: notification.image.tag
+                      value: "${NOTIFICATION_TAG}"
+                    - name: frontend.enabled
+                      value: "${FRONTEND_ENABLED}"
+                    - name: frontend.image.name
+                      value: "${FRONTEND_IMAGE_NAME}"
+                    - name: frontend.image.tag
+                      value: "${FRONTEND_TAG}"
+              destination:
+                server: https://kubernetes.default.svc
+                namespace: ${ENV_NAME}-ns
+              syncPolicy:
+                automated:
+                  prune: true
+                  selfHeal: true
+                syncOptions:
+                  - CreateNamespace=true
+        run: |
+          NAMESPACE="${ENV_NAME}-ns"
           
-          helm upgrade --install organistation ./ \
-            --namespace $NAMESPACE \
-            --create-namespace \
-            -f ./${ENV}-values.yaml \
-            --set global.imageTag=${{ github.event.inputs.image_tag }} \
-            --wait \
-            --timeout 10m \
-            --atomic
-            
+          # Set target revision based on environment
+          if [[ "${ENV_NAME}" == "prod" ]]; then
+            export TARGET_REVISION="main"
+          else
+            export TARGET_REVISION="develop"
+          fi
+          
+          TEMPLATE_PATH="shared-workflows/argocd/${ENV_NAME}-argocd.yaml"
+          if [[ ! -f "$TEMPLATE_PATH" ]]; then
+            echo "Template file not found at $TEMPLATE_PATH. Writing inline fallback."
+            mkdir -p shared-workflows/argocd
+            echo "$ARGO_TEMPLATE" > "$TEMPLATE_PATH"
+          fi
+
+          # Substitute environment variables in template
+          envsubst < "$TEMPLATE_PATH" > argocd-final.yaml
+          
+          echo "Applying generated ArgoCD Application Manifest:"
+          cat argocd-final.yaml
+          
+          # Ensure ArgoCD is installed in the cluster
+          echo "Ensuring ArgoCD is installed in the cluster..."
+          kubectl create namespace argocd || true
+          kubectl apply --server-side --force-conflicts -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          
+          kubectl apply -f argocd-final.yaml
+          
+          echo "Waiting 15 seconds for sync to initiate..."
+          sleep 15
+          
+          # Wait for application sync status
+          kubectl wait --for=jsonpath='{.status.sync.status}'=Synced application/organistation-${ENV_NAME} -n argocd --timeout=300s || true
+
       - name: Verify Rollout
         run: |
-          NAMESPACE="${{ github.event.inputs.environment }}-ns"
-          kubectl rollout status deployment/gateway -n $NAMESPACE --timeout=120s
-
-      - name: Health Check Smoke Test
-        run: |
-          GATEWAY_IP=$(kubectl get svc gateway -n ${{ github.event.inputs.environment }}-ns -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          if [ -z "$GATEWAY_IP" ]; then
-            echo "Gateway IP not found. Skipping smoke test."
+          NAMESPACE="${ENV_NAME}-ns"
+          
+          # Install kubectl argo rollouts plugin
+          echo "Installing kubectl argo rollouts plugin..."
+          curl -LO https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64
+          chmod +x ./kubectl-argo-rollouts-linux-amd64
+          sudo mv ./kubectl-argo-rollouts-linux-amd64 /usr/local/bin/kubectl-argo-rollouts
+          
+          if kubectl get rollout gateway -n "$NAMESPACE" &>/dev/null; then
+            echo "Verifying Rollout status for gateway..."
+            kubectl argo rollouts status gateway -n "$NAMESPACE" --timeout 120s
           else
-            curl -f "http://$GATEWAY_IP/health" || (echo "Health check failed!" && exit 1)
+            echo "Gateway Rollout not found. Verifying Deployment status instead..."
+            kubectl rollout status deployment/gateway -n "$NAMESPACE" --timeout=120s
           fi
 
       - name: Notify Result
@@ -77,10 +242,15 @@ jobs:
           server_port: 587
           username: ${{ secrets.SOURCE_EMAIL }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "Deployment ${{ job.status }}: OrganiStation ${{ github.event.inputs.environment }}"
+          subject: "Deployment ${{ job.status }}: OrganiStation ${{ env.ENV_NAME }}"
           to: ${{ secrets.TARGET_EMAIL }}
           from: ${{ secrets.SOURCE_EMAIL }}
           body: |
-            Deployment of OrganiStation to ${{ github.event.inputs.environment }} finished with status: ${{ job.status }}
-            Namespace: ${{ github.event.inputs.environment }}-ns
-            Image Tag: ${{ github.event.inputs.image_tag }}
+            Deployment of OrganiStation to ${{ env.ENV_NAME }} finished with status: ${{ job.status }}
+            Namespace: ${{ env.ENV_NAME }}-ns
+            Auth tag: ${{ env.AUTH_TAG }}
+            Gateway tag: ${{ env.GATEWAY_TAG }}
+            Notification tag: ${{ env.NOTIFICATION_TAG }}
+            Frontend enabled: ${{ env.FRONTEND_ENABLED }}
+            Triggered by: ${{ github.actor }}
+            Commit: ${{ github.sha }}

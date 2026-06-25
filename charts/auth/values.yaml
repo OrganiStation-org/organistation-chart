@@ -7,11 +7,11 @@ rollingUpdate:
 
 image:
   name: maheshnandi/organistation-auth
-  tag: v1.0.0
+  tag: latest
   pullPolicy: IfNotPresent
 
 service:
-  port: 8001
+  port: 80
   targetPort: 8001
   healthPath: /health
 
