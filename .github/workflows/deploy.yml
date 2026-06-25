@@ -87,9 +87,9 @@ jobs:
             done
           fi
 
-          FRONTEND_TAG="$(latest_tag frontend || true)"
+          FRONTEND_TAG="$(latest_tag frontend-service || true)"
           if [[ -n "$FRONTEND_TAG" ]]; then
-            echo "FRONTEND_IMAGE_NAME=${ACR_LOGIN_SERVER}/frontend" >> "$GITHUB_ENV"
+            echo "FRONTEND_IMAGE_NAME=${ACR_LOGIN_SERVER}/frontend-service" >> "$GITHUB_ENV"
             echo "FRONTEND_TAG=$FRONTEND_TAG" >> "$GITHUB_ENV"
             echo "FRONTEND_ENABLED=true" >> "$GITHUB_ENV"
           else
