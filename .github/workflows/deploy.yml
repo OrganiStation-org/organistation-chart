@@ -208,10 +208,10 @@ jobs:
           
           if kubectl get rollout gateway -n "$NAMESPACE" &>/dev/null; then
             echo "Verifying Rollout status for gateway..."
-            kubectl argo rollouts status gateway -n "$NAMESPACE" --timeout 120s
+            kubectl argo rollouts status gateway -n "$NAMESPACE" --timeout 600s
           else
             echo "Gateway Rollout not found. Verifying Deployment status instead..."
-            kubectl rollout status deployment/gateway -n "$NAMESPACE" --timeout=120s
+            kubectl rollout status deployment/gateway -n "$NAMESPACE" --timeout=600s
           fi
 
       - name: Notify Result
