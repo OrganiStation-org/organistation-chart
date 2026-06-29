@@ -1,87 +1,103 @@
 # ⛵ OrganiStation Helm Umbrella Chart
 
-This repository contains the **Kubernetes Manifest Orchestration** for the OrganiStation platform. It uses the "Umbrella Chart" pattern to manage 8 microservices as a single logical unit.
+This repository contains the **Kubernetes Manifest Orchestration** for the OrganiStation platform. It implements the **Helm Umbrella Chart** pattern to package, configure, and manage all 8 platform microservices as a single deployable application.
 
 ---
 
 ## 🏗️ Chart Architecture
 
-The platform is deployed using a top-level chart that coordinates these internal sub-charts:
-- `auth`, `ai`, `hr`, `finance`, `projects`, `gateway`, `frontend`, `notification`.
+The deployment is managed by a parent (umbrella) chart that coordinates the deployment, networking, and configuration of 8 sub-charts located in the `charts/` directory:
 
-### Key Global Features:
-*   **Unified Ingress**: All services are routed through a single Application Gateway / Ingress controller.
-*   **Workload Identity**: Shared `ServiceAccount` and `SecretProviderClass` logic for Azure Key Vault synchronization.
-*   **Consolidated HPA**: Horizontal Pod Autoscaling is standardized across the stack.
+- `gateway`: Express reverse-proxy routing all external API traffic.
+- `frontend`: React SPA web dashboard.
+- `auth`: Identity provider issuing JWTs, seeding permissions, and managing RBAC.
+- `ai`: RAG backend using ChromaDB vector database and Groq LLM inference.
+- `hr`: Employee records, rosters, and leave applications.
+- `projects`: Kanban task boards, milestones, and ticketing.
+- `finance`: Revenue charts, invoices, and expense claims.
+- `notification`: Real-time websocket notifications (via Azure WebPubSub) and transactional emails (via Azure Communication Services).
+
+### Global Resources
+* **Unified Ingress**: Configured at the top-level chart (`templates/ingress.yaml`) to route public DNS traffic through a single Application Gateway/Ingress Controller directly to the gateway and frontend.
+* **Workload Identity**: Shared `ServiceAccount` and CSI Secret Provider Class configurations mapping Azure Key Vault secrets directly into sub-chart pods.
 
 ---
 
 ## 🌓 Environment Decoupling
 
-We use strict value separation to prevent development changes from affecting production stability.
+The platform uses custom value files to override the base configurations in `values.yaml` for environment isolation:
 
 ### 🧪 Development (`dev-values.yaml`)
-- **Namespace**: `dev-ns`
-- **Resource Limits**: Requests/Limits tuned for cost savings.
-- **Replicas**: 1 per service.
-- **Public Access**: Direct via LoadBalancer (if needed).
+- **Target Namespace**: `dev-ns`
+- **Resource Limits**: Requests/limits tuned down for cost-savings in test environments.
+- **Replicas**: 1 pod per microservice.
 
 ### 🚀 Production (`prod-values.yaml`)
-- **Namespace**: `prod-ns` (**STRICT ENFORCEMENT**)
-- **Resource Limits**: Guaranteed QOS (Quality of Service) with higher limits.
-- **High Availability**: 2+ replicas with Anti-Affinity rules.
-- **Security**: Only accessible via private link/Internal App Gateway.
+- **Target Namespace**: `prod-ns` (**Strict Enforced Isolation**)
+- **Resource Limits**: Configured with high performance limits.
+- **High Availability**: 2+ replicas per service with Pod Anti-Affinity rules.
 
 ---
 
-## 🚀 Deployment via CLI
+## 🚚 CD Deployment via ArgoCD
 
-While the GitHub Action is preferred, you can deploy manually using:
+The chart is continuously deployed to Azure Kubernetes Service (AKS) using **ArgoCD**. The ArgoCD application manifests are stored in the `shared-workflows` repository under the `argocd/` directory.
 
-Images are tagged in ACR with the **first 7 characters of the git commit SHA** (e.g. `a1b2c3d`). Each microservice has its own tag in ACR.
+ArgoCD automatically tracks changes to the `develop` branch (for the Dev environment) and the `main` branch (for the Prod environment) in this repository and synchronizes the cluster state.
 
-The deploy workflow resolves the **latest tag per repository** from ACR automatically. You can also pass one SHA for all services via workflow dispatch.
+### Dev Environment Sync Manifest (`dev-argocd.yaml`)
+- Deploys the chart from the `develop` branch.
+- Target Namespace: `dev-ns`
 
-**Manual deploy (per-service tags from your ACR list)**:
+### Prod Environment Sync Manifest (`prod-argocd.yaml`)
+- Deploys the chart from the `main` branch.
+- Target Namespace: `prod-ns`
+
+---
+
+## 🚀 Manual Deployment via CLI
+
+If you need to install or upgrade the release manually, run the following commands from the root of this directory:
+
+### 1. Dev Environment Deploy
 ```bash
 helm upgrade --install organistation ./ \
   -n dev-ns --create-namespace \
   -f dev-values.yaml \
   --set global.namespace=dev-ns \
-  --set auth.image.name=mahesh6l0facrprod.azurecr.io/auth \
-  --set auth.image.tag=37af23c \
-  --set notification.image.name=mahesh6l0facrprod.azurecr.io/notification \
-  --set notification.image.tag=d528b9c \
-  --set gateway.image.name=mahesh6l0facrprod.azurecr.io/gateway \
-  --set gateway.image.tag=80dd4f3
-  # ...repeat for ai, hr, finance, projects
+  --set auth.image.name=<your-acr>.azurecr.io/auth \
+  --set auth.image.tag=<image-sha> \
+  --set gateway.image.name=<your-acr>.azurecr.io/gateway \
+  --set gateway.image.tag=<image-sha>
 ```
 
-**Prod deploy**:
+### 2. Prod Environment Deploy
 ```bash
 helm upgrade --install organistation ./ \
   -n prod-ns --create-namespace \
   -f prod-values.yaml \
-  --set auth.image.tag=<latest-auth-sha> \
+  --set global.namespace=prod-ns \
+  --set auth.image.tag=<image-sha> \
   --atomic
 ```
 
 ---
 
-## 🕵️ Troubleshooting & Monitoring
+## 🕵️ Troubleshooting & Verification
 
-### 1. Check Pod Status
+### 1. Check Pod Rollout Status
 ```bash
 kubectl get pods -n dev-ns
 ```
 
-### 2. Verify Key Vault Sync
-If pods fail to start, check the CSI driver:
+### 2. Verify Key Vault Secrets Sync
+If pods are stuck in `ContainerCreating` or `CreateContainerConfigError`, check the CSI driver integration status:
 ```bash
 kubectl describe secretproviderclass organistation-kv -n dev-ns
 ```
 
-### 3. Service Rollout Status
+### 3. Verify Ingress Rules
+To see the hostnames and backend paths routed by Ingress:
 ```bash
-kubectl rollout status deployment/gateway -n dev-ns
+kubectl get ingress -n dev-ns
 ```
