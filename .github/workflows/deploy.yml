@@ -61,15 +61,30 @@ jobs:
         env:
           ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
         run: |
+          ACR_NAME=$(echo "${{ secrets.ACR_LOGIN_SERVER }}" | cut -d'.' -f1)
           SHA_TAG=$(echo "${{ github.sha }}" | cut -c1-7)
-          echo "Using SHA tag for all services: $SHA_TAG"
-          for svc in auth ai hr finance projects gateway notification; do
-            echo "${svc^^}_TAG=$SHA_TAG" >> "$GITHUB_ENV"
+          echo "ACR Registry Name: $ACR_NAME"
+          
+          # Format: ENV_VAR_PREFIX:acr_repository_name
+          services="AUTH:auth AI:ai HR:hr FINANCE:finance PROJECTS:projects GATEWAY:gateway NOTIFICATION:notification FRONTEND:frontend-service"
+          
+          for item in $services; do
+            svc=$(echo "$item" | cut -d':' -f1)
+            repo_name=$(echo "$item" | cut -d':' -f2)
+            
+            echo "Fetching latest tag for $svc (ACR repo: $repo_name)..."
+            LATEST_TAG=$(az acr repository show-tags --name "$ACR_NAME" --repository "$repo_name" --top 1 --orderby time_desc --output tsv 2>/dev/null || echo "")
+            
+            if [ -n "$LATEST_TAG" ]; then
+              echo "Found latest tag for $svc: $LATEST_TAG"
+              echo "${svc}_TAG=$LATEST_TAG" >> "$GITHUB_ENV"
+            else
+              echo "Warning: Could not fetch tag for $svc. Falling back to SHA tag: $SHA_TAG"
+              echo "${svc}_TAG=$SHA_TAG" >> "$GITHUB_ENV"
+            fi
           done
           
-          # Use SHA tag for frontend as well
           echo "FRONTEND_IMAGE_NAME=${ACR_LOGIN_SERVER}/frontend-service" >> "$GITHUB_ENV"
-          echo "FRONTEND_TAG=$SHA_TAG" >> "$GITHUB_ENV"
           echo "FRONTEND_ENABLED=true" >> "$GITHUB_ENV"
 
       - name: Deploy via ArgoCD
